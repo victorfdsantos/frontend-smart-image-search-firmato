@@ -1,4 +1,11 @@
+# Web framework (frontend Reflex)
 reflex==0.8.27
-requests==2.32.3
-numpy==1.26.4
+ 
+# HTTP client assíncrono (chamadas à API backend)
 httpx==0.27.0
+ 
+# Validação de dados (usado pelo State/ProductSummary)
+pydantic==2.11.7
+ 
+# Utilitários
+requests==2.32.3

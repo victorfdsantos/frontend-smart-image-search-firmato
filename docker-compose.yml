@@ -1,0 +1,91 @@
+services:
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: firmato-frontend:latest
+    container_name: firmato-frontend
+    restart: unless-stopped
+    expose:
+      - "3000"
+      - "8001"
+
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_BASE=http://firmato-api:8000
+      - API_PUBLIC=http://${SERVER_IP}:8000
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 256M
+
+    networks:
+      - firmato-net
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: firmato-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "8001:8001"
+    volumes:
+      - ./nginx/firmato.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - firmato-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  dnsmasq:
+    image: andyshinn/dnsmasq:latest
+    container_name: firmato-dns
+    restart: unless-stopped
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    cap_add:
+      - NET_ADMIN
+    entrypoint: [
+      "dnsmasq",
+      "--keep-in-foreground",
+      "--no-resolv",
+      "--server=8.8.8.8",
+      "--server=8.8.4.4",
+      "--log-queries",
+      "--address=/firmato.local/${SERVER_IP}"
+    ]
+    networks:
+      - firmato-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+networks:
+  firmato-net:
+    name: firmato-net
+    external: true
