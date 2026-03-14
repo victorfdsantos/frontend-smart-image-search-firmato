@@ -3,6 +3,240 @@ from app.state import State, ProductSummary
 from app.styles import home as styles
 
 
+# ------------------------------------------------------------------
+# Modal de importação
+# ------------------------------------------------------------------
+
+def stat_row(label: str, value):
+    return rx.hstack(
+        rx.text(label, style=styles.get_base_text_style("13px", color=styles.COLORS["text_secondary"])),
+        rx.spacer(),
+        rx.text(value, style=styles.get_base_text_style("13px", weight="600")),
+        width="100%",
+        padding_y="4px",
+        border_bottom=f"1px solid {styles.COLORS['border']}",
+    )
+
+
+def upload_result():
+    return rx.vstack(
+        rx.hstack(
+            rx.icon(tag="circle-check", size=24, color="#4caf50"),
+            rx.text(
+                "Processamento concluído",
+                style=styles.get_base_text_style("15px", weight="600"),
+            ),
+            spacing="2",
+            align="center",
+        ),
+        rx.divider(border_color=styles.COLORS["border"], margin_y="4px"),
+        # Stats
+        rx.vstack(
+            stat_row("Total de linhas", State.upload_stats["total"]),
+            stat_row("Novos produtos", State.upload_stats["novos"]),
+            stat_row("Imagens atualizadas", State.upload_stats["imagem_principal_atualizada"]),
+            stat_row("Secundárias processadas", State.upload_stats["secundarias_processadas"]),
+            stat_row("Secundárias deletadas", State.upload_stats["secundarias_deletadas"]),
+            stat_row("Pastas movidas no NAS", State.upload_stats["pasta_nas_movida"]),
+            stat_row("Dados atualizados", State.upload_stats["dados_atualizados"]),
+            stat_row("Ignorados (sem mudança)", State.upload_stats["ignorados"]),
+            stat_row("Erros", State.upload_stats["erros"]),
+            stat_row("Arquivos limpos da landing", State.upload_stats["arquivos_limpos"]),
+            spacing="0",
+            width="100%",
+        ),
+        # Botões
+        rx.hstack(
+            rx.button(
+                rx.hstack(
+                    rx.icon(tag="file-text", size=15),
+                    rx.text("Baixar Log"),
+                    spacing="2",
+                ),
+                on_click=State.download_log,
+                style=styles.outline_button_style,
+                flex="1",
+            ),
+            rx.button(
+                "Fechar",
+                on_click=State.close_import_modal,
+                style=styles.solid_button_style,
+                flex="1",
+            ),
+            spacing="3",
+            width="100%",
+            margin_top="8px",
+        ),
+        spacing="3",
+        width="100%",
+    )
+
+
+def import_modal():
+    return rx.cond(
+        State.show_import_modal,
+        rx.box(
+            # Painel — on_click com stop_propagation para não fechar ao clicar dentro
+            rx.box(
+                # Header
+                rx.hstack(
+                    rx.hstack(
+                        rx.icon(tag="upload", size=18, color=styles.COLORS["accent"]),
+                        rx.heading(
+                            "Importar Dados",
+                            style=styles.get_base_heading_style("18px"),
+                        ),
+                        spacing="2",
+                        align="center",
+                    ),
+                    rx.spacer(),
+                    rx.button(
+                        rx.icon(tag="x", size=16),
+                        on_click=State.close_import_modal,
+                        variant="ghost",
+                        color=styles.COLORS["text_secondary"],
+                        cursor="pointer",
+                        _hover={"color": styles.COLORS["text_primary"]},
+                    ),
+                    width="100%",
+                    align="center",
+                ),
+                rx.divider(border_color=styles.COLORS["border"], margin_y="20px"),
+
+                # Estados do modal
+                rx.cond(
+                    State.is_uploading,
+                    # Loading
+                    rx.center(
+                        rx.vstack(
+                            rx.spinner(color=styles.COLORS["accent"], size="3"),
+                            rx.text(
+                                "Processando planilha...",
+                                style=styles.get_base_text_style("14px", weight="500"),
+                            ),
+                            rx.text(
+                                "Isso pode levar alguns minutos.",
+                                style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
+                            ),
+                            spacing="3",
+                            align="center",
+                        ),
+                        padding_y="40px",
+                        width="100%",
+                    ),
+                    rx.cond(
+                        State.upload_success,
+                        # Resultado com stats
+                        upload_result(),
+                        # Formulário
+                        rx.vstack(
+                            rx.upload(
+                                rx.vstack(
+                                    rx.cond(
+                                        State.import_filename != "",
+                                        rx.vstack(
+                                            rx.icon(tag="file-spreadsheet", size=32, color=styles.COLORS["accent"]),
+                                            rx.text(
+                                                State.import_filename,
+                                                style=styles.get_base_text_style("13px", weight="500"),
+                                            ),
+                                            rx.text(
+                                                "Clique para trocar o arquivo",
+                                                style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
+                                            ),
+                                            spacing="2",
+                                            align="center",
+                                        ),
+                                        rx.vstack(
+                                            rx.icon(tag="file-up", size=32, color=styles.COLORS["border_dark"]),
+                                            rx.text(
+                                                "Arraste ou clique para selecionar",
+                                                style=styles.get_base_text_style("13px", weight="500"),
+                                            ),
+                                            rx.text(
+                                                "Aceita .xlsx e .xlsm",
+                                                style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
+                                            ),
+                                            spacing="2",
+                                            align="center",
+                                        ),
+                                    ),
+                                    padding="28px 16px",
+                                    width="100%",
+                                    align="center",
+                                ),
+                                on_drop=State.handle_excel_upload,
+                                accept={
+                                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
+                                    "application/vnd.ms-excel.sheet.macroEnabled.12": [".xlsm"],
+                                },
+                                border=f"1px dashed {styles.COLORS['border_dark']}",
+                                border_radius="2px",
+                                background_color=styles.COLORS["background"],
+                                width="100%",
+                                _hover={"border_color": styles.COLORS["accent"]},
+                            ),
+                            rx.cond(
+                                State.upload_error != "",
+                                rx.text(
+                                    State.upload_error,
+                                    style=styles.get_base_text_style("12px", color="#e53935"),
+                                ),
+                            ),
+                            rx.hstack(
+                                rx.button(
+                                    rx.hstack(
+                                        rx.icon(tag="upload", size=15),
+                                        rx.text("Realizar Upload"),
+                                        spacing="2",
+                                    ),
+                                    on_click=State.do_upload,
+                                    style=styles.solid_button_style,
+                                    flex="1",
+                                ),
+                                rx.button(
+                                    rx.hstack(
+                                        rx.icon(tag="brain", size=15),
+                                        rx.text("Retreinar Modelo"),
+                                        spacing="2",
+                                    ),
+                                    on_click=State.retrain_model,
+                                    style=styles.outline_button_style,
+                                    flex="1",
+                                ),
+                                spacing="3",
+                                width="100%",
+                            ),
+                            spacing="4",
+                            width="100%",
+                        ),
+                    ),
+                ),
+
+                background_color=styles.COLORS["surface"],
+                border=f"1px solid {styles.COLORS['border']}",
+                padding="28px",
+                width="480px",
+                max_width="90vw",
+                # Impede que cliques dentro do painel fechem o modal
+                on_click=rx.stop_propagation,
+            ),
+            # Overlay — clique aqui fecha
+            position="fixed",
+            top="0",
+            left="0",
+            width="100vw",
+            height="100vh",
+            background_color="rgba(0,0,0,0.45)",
+            display="flex",
+            align_items="center",
+            justify_content="center",
+            z_index="1000",
+            on_click=State.close_import_modal,
+        ),
+    )
+
+
 def topbar():
     return rx.hstack(
         rx.image(
@@ -15,6 +249,7 @@ def topbar():
         rx.hstack(
             rx.button(
                 "Importar Dados",
+                on_click=State.open_import_modal,
                 style=styles.outline_button_style,
             ),
             rx.button(
@@ -47,7 +282,6 @@ def search_panel():
             rx.vstack(
                 rx.cond(
                     State.uploaded_image != "",
-                    # mostra preview da imagem upada
                     rx.box(
                         rx.image(
                             src=State.uploaded_image,
@@ -65,7 +299,6 @@ def search_panel():
                         width="100%",
                         position="relative",
                     ),
-                    # estado vazio
                     rx.vstack(
                         rx.button(
                             rx.hstack(
@@ -113,9 +346,7 @@ def search_panel():
                 "box_shadow": f"0 0 0 2px {styles.COLORS['accent_light']}20",
                 "outline": "none",
             },
-            _hover={
-                "border_color": styles.COLORS["accent"],
-            },
+            _hover={"border_color": styles.COLORS["accent"]},
             width="100%",
         ),
         rx.button(
@@ -141,6 +372,7 @@ def search_panel():
         width="100%",
     )
 
+
 def image_card(product: ProductSummary):
     return rx.box(
         rx.image(
@@ -161,6 +393,7 @@ def image_card(product: ProductSummary):
         style=styles.image_card_style,
         on_click=State.select_image(product.imagem_url),
     )
+
 
 def image_grid():
     return rx.cond(
@@ -185,7 +418,6 @@ def image_grid():
             width="100%",
         ),
     )
-
 
 
 def pagination_controls():
@@ -302,6 +534,7 @@ def preview_panel():
         spacing="4",
     )
 
+
 def left_panel():
     return rx.vstack(
         search_panel(),
@@ -327,26 +560,30 @@ def left_panel():
 
 
 def home():
-    return rx.vstack(
-        topbar(),
-        rx.hstack(
-            rx.box(
-                left_panel(),
-                flex="0 0 38%",
-                padding="32px 16px 32px 32px",
-            ),
-            rx.box(
-                preview_panel(),
-                flex="1",
-                padding="32px 32px 32px 16px",
+    return rx.box(
+        import_modal(),
+        rx.vstack(
+            topbar(),
+            rx.hstack(
+                rx.box(
+                    left_panel(),
+                    flex="0 0 38%",
+                    padding="32px 16px 32px 32px",
+                ),
+                rx.box(
+                    preview_panel(),
+                    flex="1",
+                    padding="32px 32px 32px 16px",
+                ),
+                width="100%",
+                align_items="stretch",
+                spacing="0",
             ),
             width="100%",
-            align_items="stretch",
+            background_color=styles.COLORS["background"],
+            min_height="100vh",
             spacing="0",
+            on_mount=State.on_load,
         ),
-        width="100%",
-        background_color=styles.COLORS["background"],
-        min_height="100vh",
-        spacing="0",
-        on_mount=State.on_load,
+        position="relative",
     )

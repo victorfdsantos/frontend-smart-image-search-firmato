@@ -15,7 +15,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - API_BASE=http://firmato-api:8000
-      - API_PUBLIC=http://${SERVER_IP}:8000
+      # API_PUBLIC não é necessário — imagens são servidas via nginx em /api/
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]

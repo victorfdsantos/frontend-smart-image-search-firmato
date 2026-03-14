@@ -13,9 +13,13 @@ app = rx.App(
     ],
     style={
         "::selection": {
-            "background": "#a67c52",  # Sua cor accent
-            "color": "#ffffff",        # Texto branco quando selecionado
-        }
+            "background": "#a67c52",
+            "color": "#ffffff",
+        },
+        # Esconde o badge "Built with Reflex"
+        "a[href='https://reflex.dev']": {
+            "display": "none !important",
+        },
     }
 )
 
