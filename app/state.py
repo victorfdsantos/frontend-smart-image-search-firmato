@@ -3,17 +3,25 @@ import base64
 import urllib.parse
 import reflex as rx
 from pydantic import BaseModel
-from app.api_client import get_products, search_products, image_url
+from app.api_client import get_products, search_products, image_url, get_product_detail
 
 
 class ProductSummary(BaseModel):
     id_produto: str = ""
     imagem_url: str = ""
+    nome_produto: str = ""
+    marca: str = ""
+    categoria_principal: str = ""
+    faixa_preco: str = ""
+    altura_cm: str = ""
+    largura_cm: str = ""
+    profundidade_cm: str = ""
 
 
 class State(rx.State):
     search_text: str = ""
     selected_image: str = ""
+    selected_product: dict = {}
     page: int = 1
     page_size: int = 20
     total: int = 0
@@ -28,11 +36,27 @@ class State(rx.State):
     show_import_modal: bool = False
     import_filename: str = ""
     is_uploading: bool = False
+    is_retraining: bool = False
     upload_success: bool = False
     upload_error: str = ""
     upload_stats: dict = {}
-    upload_log_filename: str = ""
     _excel_bytes: bytes = b""
+
+    # ------------------------------------------------------------------
+    # Seleção de imagem + carrega detalhes do produto
+    # ------------------------------------------------------------------
+
+    def select_image(self, url: str, product_id: str):
+        self.selected_image = url
+        self.selected_product = {}
+        yield State.load_product_detail(product_id)
+        yield self._push_url()
+
+    @rx.event(background=True)
+    async def load_product_detail(self, product_id: str):
+        data = await get_product_detail(product_id)
+        async with self:
+            self.selected_product = data or {}
 
     # ------------------------------------------------------------------
     # Modal de importação
@@ -42,10 +66,10 @@ class State(rx.State):
         self.show_import_modal = True
         self.import_filename = ""
         self.is_uploading = False
+        self.is_retraining = False
         self.upload_success = False
         self.upload_error = ""
         self.upload_stats = {}
-        self.upload_log_filename = ""
         self._excel_bytes = b""
 
     def close_import_modal(self):
@@ -92,15 +116,33 @@ class State(rx.State):
                 self.is_uploading = False
                 self.upload_error = f"Erro: {str(exc)}"
 
+    @rx.event(background=True)
+    async def retrain_model(self):
+        async with self:
+            self.is_retraining = True
+            self.upload_error = ""
+
+        try:
+            import httpx
+            from app.api_client import API_BASE
+            async with httpx.AsyncClient(timeout=600) as client:
+                resp = await client.post(f"{API_BASE}/catalog/retrain")
+                resp.raise_for_status()
+
+            async with self:
+                self.is_retraining = False
+                self.upload_success = True
+                self.upload_stats = {}
+        except Exception as exc:
+            async with self:
+                self.is_retraining = False
+                self.upload_error = f"Erro no retreinamento: {str(exc)}"
+
     def download_log(self):
-        """Abre o endpoint de logs da API para download."""
         from app.api_client import API_BASE
         return rx.call_script(
             f"window.open('{API_BASE}/catalog/latest-log', '_blank');"
         )
-
-    def retrain_model(self):
-        pass  # placeholder
 
     # ------------------------------------------------------------------
     # Inicialização
@@ -201,6 +243,13 @@ class State(rx.State):
                 ProductSummary(
                     id_produto=str(item["id_produto"]),
                     imagem_url=image_url(item["id_produto"]),
+                    nome_produto=str(item.get("nome_produto") or ""),
+                    marca=str(item.get("marca") or ""),
+                    categoria_principal=str(item.get("categoria_principal") or ""),
+                    faixa_preco=str(item.get("faixa_preco") or ""),
+                    altura_cm=str(item.get("altura_cm") or ""),
+                    largura_cm=str(item.get("largura_cm") or ""),
+                    profundidade_cm=str(item.get("profundidade_cm") or ""),
                 )
                 for item in data.get("items", [])
             ]
@@ -220,6 +269,13 @@ class State(rx.State):
             ProductSummary(
                 id_produto=str(item["id_produto"]),
                 imagem_url=image_url(item["id_produto"]),
+                nome_produto=str(item.get("nome_produto") or ""),
+                marca=str(item.get("marca") or ""),
+                categoria_principal=str(item.get("categoria_principal") or ""),
+                faixa_preco=str(item.get("faixa_preco") or ""),
+                altura_cm=str(item.get("altura_cm") or ""),
+                largura_cm=str(item.get("largura_cm") or ""),
+                profundidade_cm=str(item.get("profundidade_cm") or ""),
             )
             for item in data.get("items", [])
         ]
@@ -237,15 +293,13 @@ class State(rx.State):
             await self.load_products()
             yield self._push_url()
 
-    def select_image(self, url: str):
-        self.selected_image = url
-        yield self._push_url()
-
     async def clear_all(self):
-        self._image_bytes   = b""
-        self.uploaded_image = ""
-        self.search_text    = ""
-        self.page           = 1
+        self._image_bytes    = b""
+        self.uploaded_image  = ""
+        self.search_text     = ""
+        self.page            = 1
+        self.selected_image  = ""
+        self.selected_product = {}
         await self.load_products()
         yield self._push_url()
 

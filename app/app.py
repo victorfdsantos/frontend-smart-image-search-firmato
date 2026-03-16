@@ -16,9 +16,19 @@ app = rx.App(
             "background": "#a67c52",
             "color": "#ffffff",
         },
-        # Esconde o badge "Built with Reflex"
         "a[href='https://reflex.dev']": {
             "display": "none !important",
+        },
+        # Hover no card: escurece imagem e mostra overlay
+        ".image-card:hover img": {
+            "opacity": "0.65 !important",
+            "transition": "opacity 0.25s ease",
+        },
+        ".image-card:hover .card-overlay": {
+            "opacity": "1 !important",
+        },
+        ".image-card img": {
+            "transition": "opacity 0.25s ease",
         },
     }
 )

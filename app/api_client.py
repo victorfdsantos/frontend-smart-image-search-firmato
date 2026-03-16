@@ -1,12 +1,10 @@
 import httpx
 import os
+from typing import Optional
 
-# API_BASE: URL interna Docker para chamadas server-side (backend Reflex → API)
-API_BASE = os.getenv("API_BASE", "http://firmato-api:8000")
-
-# API_PUBLIC: prefixo para URLs de imagens no browser
-# Vazio = mesmo origin (firmato.local) — o nginx faz o proxy para /api/
+API_BASE   = os.getenv("API_BASE",   "http://firmato-api:8000")
 API_PUBLIC = os.getenv("API_PUBLIC", "")
+
 
 async def get_products(page: int = 1, page_size: int = 20) -> dict:
     try:
@@ -20,8 +18,20 @@ async def get_products(page: int = 1, page_size: int = 20) -> dict:
     except Exception:
         return {"page": page, "page_size": page_size, "total": 0, "total_pages": 1, "items": []}
 
+
+async def get_product_detail(product_id: str) -> Optional[dict]:
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(f"{API_BASE}/products/{product_id}")
+            resp.raise_for_status()
+            return resp.json()
+    except Exception:
+        return None
+
+
 def image_url(product_id: int) -> str:
     return f"{API_PUBLIC}/api/static/images/{product_id}.jpg"
+
 
 async def search_products(query: str = None, image_bytes: bytes = None, top_k: int = 20) -> dict:
     try:

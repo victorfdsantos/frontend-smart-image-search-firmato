@@ -4,6 +4,112 @@ from app.styles import home as styles
 
 
 # ------------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------------
+
+def detail_field(label: str, value):
+    """Linha de campo: label à esquerda, valor à direita."""
+    return rx.hstack(
+        rx.text(
+            label,
+            style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
+            min_width="140px",
+        ),
+        rx.text(
+            value,
+            style=styles.get_base_text_style("12px"),
+            flex="1",
+        ),
+        width="100%",
+        padding_y="5px",
+        border_bottom=f"1px solid {styles.COLORS['border']}",
+        align="start",
+    )
+
+
+def detail_section(title: str, *fields):
+    return rx.vstack(
+        rx.text(
+            title,
+            style=styles.get_base_text_style("11px", weight="700", color=styles.COLORS["accent"]),
+            text_transform="uppercase",
+            letter_spacing="0.08em",
+            padding_top="8px",
+        ),
+        *fields,
+        spacing="0",
+        width="100%",
+    )
+
+
+def product_detail_panel():
+    return rx.cond(
+        State.selected_product.length() > 0,
+        rx.vstack(
+            rx.hstack(
+                rx.icon(tag="package", size=16, color=styles.COLORS["accent"]),
+                rx.text(
+                    "Informações do Produto",
+                    style=styles.get_base_heading_style("15px"),
+                ),
+                spacing="2",
+                align="center",
+                width="100%",
+            ),
+            rx.divider(border_color=styles.COLORS["border"], width="100%"),
+
+            # Identificação
+            detail_section(
+                "Identificação",
+                detail_field("ID", State.selected_product["id_produto"]),
+                detail_field("Nome", State.selected_product["nome_produto"]),
+                detail_field("Marca", State.selected_product["marca"]),
+                detail_field("Status", State.selected_product["status"]),
+                detail_field("Categoria", State.selected_product["categoria_principal"]),
+                detail_field("Subcategoria", State.selected_product["subcategoria"]),
+                detail_field("Faixa de Preço", State.selected_product["faixa_preco"]),
+            ),
+
+            # Características
+            detail_section(
+                "Características",
+                detail_field("Ambiente", State.selected_product["ambiente"]),
+                detail_field("Forma", State.selected_product["forma"]),
+                detail_field("Material Principal", State.selected_product["material_principal"]),
+                detail_field("Material Estrutura", State.selected_product["material_estrutura"]),
+                detail_field("Material Revestimento", State.selected_product["material_revestimento"]),
+            ),
+
+            # Dimensões
+            detail_section(
+                "Dimensões",
+                detail_field("Altura (cm)", State.selected_product["altura_cm"]),
+                detail_field("Largura (cm)", State.selected_product["largura_cm"]),
+                detail_field("Profundidade (cm)", State.selected_product["profundidade_cm"]),
+            ),
+
+            # Descrição
+            detail_section(
+                "Descrição Técnica",
+                rx.text(
+                    State.selected_product["descricao_tecnica"],
+                    style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
+                    padding_y="6px",
+                    white_space="pre-wrap",
+                ),
+            ),
+
+            spacing="2",
+            width="100%",
+            padding="20px",
+            background_color=styles.COLORS["background"],
+            border=f"1px solid {styles.COLORS['border']}",
+            margin_top="12px",
+        ),
+    )
+
+
+# ------------------------------------------------------------------
 # Modal de importação
 # ------------------------------------------------------------------
 
@@ -23,39 +129,51 @@ def upload_result():
         rx.hstack(
             rx.icon(tag="circle-check", size=24, color="#4caf50"),
             rx.text(
-                "Processamento concluído",
+                rx.cond(
+                    State.upload_stats.length() > 0,
+                    "Processamento concluído",
+                    "Retreinamento concluído",
+                ),
                 style=styles.get_base_text_style("15px", weight="600"),
             ),
             spacing="2",
             align="center",
         ),
         rx.divider(border_color=styles.COLORS["border"], margin_y="4px"),
-        # Stats
-        rx.vstack(
-            stat_row("Total de linhas", State.upload_stats["total"]),
-            stat_row("Novos produtos", State.upload_stats["novos"]),
-            stat_row("Imagens atualizadas", State.upload_stats["imagem_principal_atualizada"]),
-            stat_row("Secundárias processadas", State.upload_stats["secundarias_processadas"]),
-            stat_row("Secundárias deletadas", State.upload_stats["secundarias_deletadas"]),
-            stat_row("Pastas movidas no NAS", State.upload_stats["pasta_nas_movida"]),
-            stat_row("Dados atualizados", State.upload_stats["dados_atualizados"]),
-            stat_row("Ignorados (sem mudança)", State.upload_stats["ignorados"]),
-            stat_row("Erros", State.upload_stats["erros"]),
-            stat_row("Arquivos limpos da landing", State.upload_stats["arquivos_limpos"]),
-            spacing="0",
-            width="100%",
+        rx.cond(
+            State.upload_stats.length() > 0,
+            rx.vstack(
+                stat_row("Total de linhas",            State.upload_stats["total"]),
+                stat_row("Novos produtos",             State.upload_stats["novos"]),
+                stat_row("Imagens atualizadas",        State.upload_stats["imagem_principal_atualizada"]),
+                stat_row("Secundárias processadas",    State.upload_stats["secundarias_processadas"]),
+                stat_row("Secundárias deletadas",      State.upload_stats["secundarias_deletadas"]),
+                stat_row("Pastas movidas no NAS",      State.upload_stats["pasta_nas_movida"]),
+                stat_row("Dados atualizados",          State.upload_stats["dados_atualizados"]),
+                stat_row("Ignorados (sem mudança)",    State.upload_stats["ignorados"]),
+                stat_row("Erros",                      State.upload_stats["erros"]),
+                stat_row("Arquivos limpos da landing", State.upload_stats["arquivos_limpos"]),
+                spacing="0",
+                width="100%",
+            ),
+            rx.text(
+                "Thumbnails e embeddings foram recarregados com sucesso.",
+                style=styles.get_base_text_style("13px", color=styles.COLORS["text_secondary"]),
+            ),
         ),
-        # Botões
         rx.hstack(
-            rx.button(
-                rx.hstack(
-                    rx.icon(tag="file-text", size=15),
-                    rx.text("Baixar Log"),
-                    spacing="2",
+            rx.cond(
+                State.upload_stats.length() > 0,
+                rx.button(
+                    rx.hstack(
+                        rx.icon(tag="file-text", size=15),
+                        rx.text("Baixar Log"),
+                        spacing="2",
+                    ),
+                    on_click=State.download_log,
+                    style=styles.outline_button_style,
+                    flex="1",
                 ),
-                on_click=State.download_log,
-                style=styles.outline_button_style,
-                flex="1",
             ),
             rx.button(
                 "Fechar",
@@ -76,9 +194,7 @@ def import_modal():
     return rx.cond(
         State.show_import_modal,
         rx.box(
-            # Painel — on_click com stop_propagation para não fechar ao clicar dentro
             rx.box(
-                # Header
                 rx.hstack(
                     rx.hstack(
                         rx.icon(tag="upload", size=18, color=styles.COLORS["accent"]),
@@ -102,20 +218,25 @@ def import_modal():
                     align="center",
                 ),
                 rx.divider(border_color=styles.COLORS["border"], margin_y="20px"),
-
-                # Estados do modal
                 rx.cond(
-                    State.is_uploading,
-                    # Loading
+                    State.is_uploading | State.is_retraining,
                     rx.center(
                         rx.vstack(
                             rx.spinner(color=styles.COLORS["accent"], size="3"),
                             rx.text(
-                                "Processando planilha...",
+                                rx.cond(
+                                    State.is_retraining,
+                                    "Retreinando modelo...",
+                                    "Processando planilha...",
+                                ),
                                 style=styles.get_base_text_style("14px", weight="500"),
                             ),
                             rx.text(
-                                "Isso pode levar alguns minutos.",
+                                rx.cond(
+                                    State.is_retraining,
+                                    "Reconstruindo thumbnails e recarregando embeddings.",
+                                    "Isso pode levar alguns minutos.",
+                                ),
                                 style=styles.get_base_text_style("12px", color=styles.COLORS["text_secondary"]),
                             ),
                             spacing="3",
@@ -126,9 +247,7 @@ def import_modal():
                     ),
                     rx.cond(
                         State.upload_success,
-                        # Resultado com stats
                         upload_result(),
-                        # Formulário
                         rx.vstack(
                             rx.upload(
                                 rx.vstack(
@@ -212,16 +331,13 @@ def import_modal():
                         ),
                     ),
                 ),
-
                 background_color=styles.COLORS["surface"],
                 border=f"1px solid {styles.COLORS['border']}",
                 padding="28px",
                 width="480px",
                 max_width="90vw",
-                # Impede que cliques dentro do painel fechem o modal
                 on_click=rx.stop_propagation,
             ),
-            # Overlay — clique aqui fecha
             position="fixed",
             top="0",
             left="0",
@@ -374,6 +490,41 @@ def search_panel():
 
 
 def image_card(product: ProductSummary):
+    has_dims = product.altura_cm != ""
+
+    overlay_content = rx.vstack(
+        rx.text(
+            product.nome_produto,
+            style=styles.get_base_text_style("13px", weight="600", color="#ffffff"),
+            no_of_lines=2,
+        ),
+        rx.text(
+            product.marca,
+            style=styles.get_base_text_style("11px", color="rgba(255,255,255,0.8)"),
+        ),
+        rx.text(
+            product.categoria_principal,
+            style=styles.get_base_text_style("11px", color="rgba(255,255,255,0.7)"),
+        ),
+        rx.cond(
+            product.faixa_preco != "",
+            rx.text(
+                product.faixa_preco,
+                style=styles.get_base_text_style("11px", weight="600", color=styles.COLORS["accent_light"]),
+            ),
+        ),
+        rx.cond(
+            has_dims,
+            rx.text(
+                product.altura_cm + " × " + product.largura_cm + " × " + product.profundidade_cm + " cm",
+                style=styles.get_base_text_style("10px", color="rgba(255,255,255,0.6)"),
+            ),
+        ),
+        spacing="1",
+        align="start",
+        width="100%",
+    )
+
     return rx.box(
         rx.image(
             src=product.imagem_url,
@@ -384,14 +535,31 @@ def image_card(product: ProductSummary):
             style={
                 "animation": "fadeIn 0.35s ease forwards",
                 "opacity": "0",
+                "transition": "opacity 0.3s ease",
                 "@keyframes fadeIn": {
                     "from": {"opacity": "0", "transform": "translateY(6px)"},
                     "to": {"opacity": "1", "transform": "translateY(0)"},
                 },
             },
         ),
+        # Overlay que aparece no hover
+        rx.box(
+            overlay_content,
+            position="absolute",
+            bottom="0",
+            left="0",
+            right="0",
+            padding="12px",
+            background="linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.4) 100%, transparent 100%)",
+            opacity="0",
+            transition="opacity 0.25s ease",
+            class_name="card-overlay",
+        ),
+        position="relative",
+        overflow="hidden",
+        class_name="image-card",
         style=styles.image_card_style,
-        on_click=State.select_image(product.imagem_url),
+        on_click=State.select_image(product.imagem_url, product.id_produto),
     )
 
 
@@ -474,7 +642,7 @@ def preview_panel():
                     rx.image(
                         src=State.selected_image,
                         width="100%",
-                        max_height="1000px",
+                        max_height="600px",
                         object_fit="contain",
                         border_radius="2px",
                     ),
@@ -506,6 +674,8 @@ def preview_panel():
                     spacing="3",
                     width="100%",
                 ),
+                # Detalhes do produto abaixo da imagem
+                product_detail_panel(),
                 spacing="4",
                 width="100%",
             ),
