@@ -200,10 +200,21 @@ class State(rx.State):
             await self.load_products()
         yield self._push_url()
 
-    def clear_all_filters(self):
-        self.applied_filters = {}
-        self._sync_af()
-        self.filter_dropdown_open = False
+    @rx.event(background=True)
+    async def clear_all_filters(self):
+        async with self:
+            self.applied_filters = {}
+            self._sync_af()
+            self.filter_dropdown_open = False
+            has_query = bool(self.search_text.strip())
+            has_image = bool(self._image_bytes)
+
+        if has_query or has_image:
+            yield State.run_search(self.search_text)
+        else:
+            async with self:
+                await self.load_products()
+            yield self._push_url()
 
     def _sync_af(self):
         """Sincroniza applied_filters → af_* vars tipadas para uso nos chips."""
