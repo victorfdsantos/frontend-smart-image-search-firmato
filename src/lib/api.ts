@@ -6,17 +6,20 @@ import type {
   FilterMap,
 } from "@/types";
 
-// In the browser, API calls go through Next.js rewrites (proxied).
-// On the server (SSR/build), we need the internal API URL.
+// Client-side: calls go to /api/* which Next.js rewrites → backend
+// Server-side: calls go directly to API_BASE (e.g. http://firmato-api:8000)
 const getApiBase = () => {
   if (typeof window !== "undefined") {
-    // Client-side: use the relative /api prefix (Next.js rewrites handle it)
     return "/api";
   }
-  // Server-side: direct to backend
   return process.env.API_BASE ?? "http://localhost:8000";
 };
 
+// Paths passed to apiFetch must NOT include /api prefix —
+// client adds it via getApiBase(), server calls backend directly.
+// e.g. apiFetch("/products") →
+//   client:  fetch("/api/products")   → rewrite → backend/products
+//   server:  fetch("http://firmato-api:8000/products")
 const buildFilterParams = (filters: FilterMap): Record<string, string> => {
   const params: Record<string, string> = {};
   for (const [k, vals] of Object.entries(filters)) {
@@ -32,14 +35,13 @@ async function apiFetch<T>(
 ): Promise<T | null> {
   try {
     const base = getApiBase();
-    const url = new URL(`${base}${path}`, "http://placeholder");
+    // Build query string using URL for safety, but keep path separate from base
+    const url = new URL(`http://placeholder${path}`);
     if (params) {
       Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
     }
-    const fullUrl = url.pathname + url.search;
-    const res = await fetch(`${base}${url.pathname + url.search}`, {
+    const res = await fetch(`${base}${url.pathname}${url.search}`, {
       ...options,
-      // Don't cache in the browser (data changes often)
       cache: "no-store",
     });
     if (!res.ok) return null;
@@ -91,7 +93,7 @@ export async function searchProducts(
 ): Promise<SearchResult> {
   try {
     const base = getApiBase();
-    const url = new URL(`${base}/search`, "http://placeholder");
+    const url = new URL(`http://placeholder/search`);
     if (query?.trim()) url.searchParams.set("q", query.trim());
     url.searchParams.set("top_k", String(topK));
     Object.entries(buildFilterParams(filters)).forEach(([k, v]) =>
@@ -106,7 +108,7 @@ export async function searchProducts(
       body.append("image", imageFile, "image.jpg");
     }
 
-    const res = await fetch(`${base}${url.pathname + url.search}`, {
+    const res = await fetch(`${base}/search${url.search}`, {
       method: "POST",
       body,
       headers,
