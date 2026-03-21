@@ -16,7 +16,7 @@ import { parseFiltersFromUrl, buildSearchUrl } from "@/lib/utils";
 import { useDebounce } from "@/hooks/useDebounce";
 import type { ProductSummary, ProductDetail, FilterMap } from "@/types";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 12;
 
 export function HomeClient() {
   // — State —
@@ -75,15 +75,29 @@ export function HomeClient() {
       const data = await searchProducts(
         q || undefined,
         imageFileRef.current,
-        20,
+        12,
         f
       );
-      setProducts(
-        data.items.map((item) => ({
-          ...item,
-          imagem_url: imageUrl(item.id_produto),
-        }))
+
+      // /search returns only id_produto + score — enrich with full details in parallel
+      const enriched = await Promise.all(
+        data.items.map(async (item) => {
+          const detail = await getProductDetail(item.id_produto);
+          return {
+            id_produto: item.id_produto,
+            imagem_url: imageUrl(item.id_produto),
+            nome_produto: detail?.nome_produto ?? "",
+            marca: detail?.marca ?? "",
+            categoria_principal: detail?.categoria_principal ?? "",
+            faixa_preco: detail?.faixa_preco ?? "",
+            altura_cm: detail?.altura_cm ?? "",
+            largura_cm: detail?.largura_cm ?? "",
+            profundidade_cm: detail?.profundidade_cm ?? "",
+          };
+        })
       );
+
+      setProducts(enriched);
       setTotal(data.total);
       setTotalPages(1);
       setIsSearching(false);
@@ -240,7 +254,7 @@ export function HomeClient() {
 
   return (
     <div className="min-h-screen bg-firmato-bg">
-      <Topbar onImport={() => setImportOpen(true)} />
+      <Topbar onImport={() => setImportOpen(true)} onReset={handleClearAll} />
 
       <div className="flex items-stretch">
         {/* Left panel */}
