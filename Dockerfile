@@ -1,70 +1,54 @@
-# =============================================================================
-# Build stage — instala dependências Python e Node
-# =============================================================================
-FROM python:3.12-slim AS builder
-
-WORKDIR /build
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-
-RUN pip install --upgrade pip && \
-    pip install --prefix=/install --no-cache-dir -r requirements.txt
-
-
-# =============================================================================
-# Runtime stage
-# =============================================================================
-FROM python:3.12-slim AS runtime
-
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    FRONTEND_PORT=3000 \
-    BACKEND_PORT=8001 \
-    API_BASE=http://api:8000 \
-    REFLEX_DIR=/app/.reflex \
-    HOME=/app
-
+# ============================================================
+# Stage 1 — Install dependencies
+# ============================================================
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Node.js + unzip (exigido pelo Reflex para descompactar dependências Node)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    gnupg \
-    unzip \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+COPY package.json package-lock.json* ./
+RUN npm ci --prefer-offline
 
-# Copia pacotes Python instalados no build stage
-COPY --from=builder /install /usr/local
+# ============================================================
+# Stage 2 — Build
+# ============================================================
+FROM node:20-alpine AS builder
+WORKDIR /app
 
-# Copia o código-fonte do app
-COPY app/ ./app/
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# assets/ fica na raiz do projeto (logo, favicon, etc.)
-# Se não tiver essa pasta, remova esta linha
-COPY assets/ ./assets/
+ENV NEXT_TELEMETRY_DISABLED=1
 
-COPY rxconfig.py ./
+RUN npm run build
 
-RUN useradd --no-create-home --shell /bin/false --home-dir /app appuser && \
-    chown -R appuser:appuser /app
-USER appuser
+# ============================================================
+# Stage 3 — Production runtime
+# ============================================================
+FROM node:20-alpine AS runner
+WORKDIR /app
 
-EXPOSE 3000 8001
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+# libc6-compat needed by sharp on Alpine
+RUN apk add --no-cache libc6-compat
 
-CMD ["reflex", "run", \
-     "--env", "prod", \
-     "--frontend-port", "3000", \
-     "--backend-port", "8001", \
-     "--loglevel", "info"]
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy standalone output
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Install sharp in the runner — required for image optimization in standalone mode
+RUN npm install sharp && \
+    chown -R nextjs:nodejs /app/node_modules
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

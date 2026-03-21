@@ -1,183 +1,188 @@
-# smart-image-search-firmato — Frontend
+# Firmato — Frontend (Next.js)
 
-Interface web do buscador de imagens Firmato Móveis, construída com [Reflex](https://reflex.dev/).
+Interface web do buscador de imagens Firmato Móveis, construída com **Next.js 14 + TypeScript + Tailwind CSS**.
 
-Consome a API de catálogo (`/products`, `/search`) e oferece galeria paginada, busca semântica por texto e por imagem, e pré-visualização com download e cópia da imagem selecionada.
-
----
-
-## O que o sistema faz
-
-- **Galeria paginada** — lista produtos ativos consumindo `GET /products` da API de catálogo.
-- **Busca por texto** — campo de busca com debounce de 500 ms que chama `POST /search?q=...` usando embeddings CLIP.
-- **Busca por imagem** — upload de imagem (JPEG, PNG, WebP) que dispara `POST /search` com o arquivo, retornando os produtos mais similares.
-- **Busca combinada** — texto + imagem enviados juntos; o backend combina os embeddings 50/50.
-- **Pré-visualização** — painel lateral com zoom, botão de download e cópia da imagem para a área de transferência.
+Consome a API de catálogo (`/products`, `/search`, `/catalog/register`) e oferece galeria paginada, busca semântica por texto e por imagem, filtros em cascata e pré-visualização com download da imagem selecionada.
 
 ---
 
-## Estrutura de pastas esperada
+## Stack
+
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 14 (App Router) |
+| Linguagem | TypeScript |
+| Estilo | Tailwind CSS |
+| Ícones | Lucide React |
+| Proxy de API | Next.js rewrites (`/api/*` → backend) |
+| Container | Docker (Node 20 Alpine, standalone output) |
+
+---
+
+## Estrutura de pastas
 
 ```
-frontend/
+src/
 ├── app/
-│   ├── __init__.py
-│   ├── app.py           # instância rx.App + add_page
-│   ├── api_client.py    # chamadas HTTP à API de catálogo
-│   ├── rxconfig.py      # configuração do Reflex (portas, app_name)
-│   ├── state.py         # State Reflex (lógica de negócio do frontend)
-│   ├── pages/
-│   │   └── home.py      # página principal (topbar, search panel, grid, preview)
-│   └── styles/
-│       └── home.py      # paleta de cores e estilos reutilizáveis
-├── assets/              # arquivos estáticos (logo, favicon, etc.)
-├── requirements.txt
-├── Dockerfile
-└── docker-compose.yml
+│   ├── globals.css        # reset + variáveis CSS
+│   ├── layout.tsx         # root layout
+│   └── page.tsx           # página raiz → <HomeClient>
+├── components/
+│   ├── ui/                # Button, Spinner, Modal (componentes base)
+│   ├── HomeClient.tsx     # toda a lógica de estado da página
+│   ├── Topbar.tsx
+│   ├── SearchPanel.tsx
+│   ├── FilterDropdown.tsx
+│   ├── AppliedFilters.tsx
+│   ├── ImageCard.tsx
+│   ├── ProductGrid.tsx
+│   ├── Pagination.tsx
+│   ├── PreviewPanel.tsx
+│   ├── ProductDetailPanel.tsx
+│   └── ImportModal.tsx
+├── hooks/
+│   ├── useDebounce.ts     # debounce de 500 ms para busca por texto
+│   └── useUrlSync.ts      # helper para pushState na URL
+├── lib/
+│   ├── api.ts             # todos os fetches para o backend
+│   ├── constants.ts       # FILTER_FIELDS
+│   └── utils.ts           # cn(), parseFiltersFromUrl(), buildSearchUrl()
+└── types/
+    └── index.ts           # ProductSummary, ProductDetail, FilterMap, etc.
 ```
-
----
-
-## Pré-requisitos
-
-- Python **3.12**
-- Node.js **20+** (usado pelo Reflex para compilar o frontend)
-- `venv` disponível (já vem com o Python 3.12)
-- API de catálogo rodando em `http://localhost:8000`
 
 ---
 
 ## Como rodar localmente
 
-### 1. Clonar o repositório
-
-```bash
-git clone https://github.com/seu-usuario/smart-image-search-firmato-frontend.git
-cd smart-image-search-firmato-frontend
-```
-
-### 2. Criar o ambiente virtual
-
-```bash
-python3.12 -m venv .venv
-```
-
-### 3. Ativar o ambiente virtual
-
-**Linux / macOS:**
-```bash
-source .venv/bin/activate
-```
-
-**Windows (PowerShell):**
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-### 4. Instalar as dependências
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### 5. Inicializar o Reflex
-
-Na primeira vez, o Reflex baixa as dependências Node e gera a pasta `.web`:
-
-```bash
-reflex init
-```
-
-### 6. Configurar a URL da API
-
-Abra `app/api_client.py` e ajuste a constante se necessário:
-
-```python
-API_BASE = "http://localhost:8000"
-```
-
-### 7. Rodar o frontend
-
-```bash
-reflex run
-```
-
-A interface estará disponível em: `http://localhost:3000`
-
-> **Atenção:** a API de catálogo precisa estar rodando em `http://localhost:8000` para que a galeria e a busca funcionem. Consulte o README do repositório de backend para instruções de execução.
-
----
-
-## Notas
-
-- O Reflex sobe dois processos: o **servidor frontend** (Next.js, porta 3000) e o **backend Reflex** (FastAPI/websocket, porta 8001). Ambos são necessários para o funcionamento do State reativo.
-- A variável `_image_bytes` no `State` é uma variável de instância privada (não sincronizada com o cliente), usada apenas para repassar os bytes da imagem ao backend Reflex durante a sessão.
-- O debounce de 500 ms na busca por texto evita chamadas excessivas à API enquanto o usuário digita.
-
----
-
-## Como subir em produção (Docker)
-
 ### Pré-requisitos
 
-- Docker Engine 24+
-- Docker Compose v2 (`docker compose` sem hífen)
-- API de catálogo já rodando (ou configurada na mesma rede Docker)
+- Node.js **20+**
+- Backend da API rodando (por padrão em `http://localhost:8000`)
 
-### 1. Clonar e entrar na pasta
-
-```bash
-git clone https://github.com/seu-usuario/smart-image-search-firmato-frontend.git
-cd smart-image-search-firmato-frontend
-```
-
-### 2. Ajustar a URL da API no Compose
-
-Abra o `docker-compose.yml` e confirme a variável de ambiente:
-
-```yaml
-environment:
-  - API_BASE=http://firmato-api:8000
-```
-
-> `firmato-api` é o nome do container da API na rede `firmato-net`. Se a API estiver em outro host, substitua pelo IP ou hostname correspondente.
-
-### 3. Configurar a rede compartilhada
-
-Se a API já foi iniciada com o `docker-compose.yml` do backend (que cria a rede `firmato-net`), descomente o bloco `external: true` no final do `docker-compose.yml` do frontend:
-
-```yaml
-networks:
-  firmato-net:
-    name: firmato-net
-    external: true
-```
-
-Caso contrário, deixe como está — o Compose criará a rede automaticamente.
-
-### 4. Build e subir
+### 1. Instalar dependências
 
 ```bash
-docker compose build
+npm install
+```
+
+### 2. Configurar variável de ambiente
+
+```bash
+cp .env.example .env.local
+```
+
+Edite `.env.local` se o backend estiver em um endereço diferente:
+
+```env
+API_BASE=http://localhost:8000
+```
+
+### 3. Rodar em modo desenvolvimento
+
+```bash
+npm run dev
+```
+
+Acesse: **http://localhost:3000**
+
+Todas as chamadas de `/api/*` são proxiadas automaticamente para o backend via Next.js rewrites — sem precisar de CORS ou nginx em desenvolvimento.
+
+---
+
+## Como rodar via Docker
+
+### 1. Build da imagem
+
+```bash
+docker build -t firmato-frontend .
+```
+
+### 2. Rodar o container
+
+**Opção A — backend na mesma rede Docker (mais comum em produção):**
+
+```bash
+# Garanta que a rede do backend existe (ou foi criada pelo compose do backend)
+docker network create firmato-net
+
+docker run -d \
+  --name firmato-frontend \
+  --network firmato-net \
+  -p 3000:3000 \
+  -e API_BASE=http://firmato-api:8000 \
+  firmato-frontend
+```
+
+**Opção B — usando docker compose:**
+
+```bash
 docker compose up -d
 ```
 
-A interface estará disponível em `http://seu-servidor:3000`.
+> Por padrão o `docker-compose.yml` conecta o frontend à rede `firmato-net`.
+> Se o backend já criou essa rede, edite o compose e troque o bloco `networks` para `external: true`.
 
-### Comandos úteis do dia a dia
+**Opção C — backend em outro servidor ou cloud:**
 
 ```bash
-# Rebuild após mudança de código
-docker compose build && docker compose up -d
-
-# Ver logs em tempo real
-docker compose logs -f frontend
-
-# Parar tudo
-docker compose down
+docker run -d \
+  --name firmato-frontend \
+  -p 3000:3000 \
+  -e API_BASE=https://api.seudominio.com \
+  firmato-frontend
 ```
 
-### Observação sobre o build
+### 3. Verificar
 
-O estágio `builder` do Dockerfile executa `reflex init` e `reflex export` para pré-compilar o frontend estático durante o build da imagem. Isso torna o startup do container mais rápido, mas aumenta o tempo de build na primeira vez (download das dependências Node).
+```bash
+docker logs -f firmato-frontend
+# Acesse http://localhost:3000 ou http://IP-DO-SERVIDOR:3000
+```
+
+---
+
+## Como funciona o proxy de API
+
+O Next.js redireciona internamente todas as requisições `/api/*` para o backend, sem expor o endereço do backend para o browser:
+
+```
+Browser → Next.js :3000 → (rewrite) → Backend :8000
+            /api/products              /products
+            /api/search                /search
+            /api/static/images/1.jpg   /static/images/1.jpg
+```
+
+Isso elimina CORS no backend e funciona igual em dev e produção.
+
+---
+
+## Variáveis de ambiente
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `API_BASE` | `http://localhost:8000` | URL interna do backend FastAPI |
+
+---
+
+## Comandos úteis
+
+```bash
+# Desenvolvimento
+npm run dev
+
+# Build de produção
+npm run build && npm start
+
+# Lint
+npm run lint
+
+# Docker — rebuild e restart
+docker compose build && docker compose up -d
+
+# Docker — ver logs
+docker compose logs -f
+
+# Docker — parar
+docker compose down
+```
